@@ -1,0 +1,9 @@
+{
+  "name": "Cliente ficticio A (monotributo, servicios)",
+  "client_cuit": "20111111112",
+  "regime": "monotributo",
+  "iibb_rate": 0.05,
+  "tem_rate": 0.01,
+  "monotributo_fee": 42000,
+  "category_cap": 10000000
+}

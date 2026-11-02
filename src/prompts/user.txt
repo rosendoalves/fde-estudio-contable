@@ -1,13 +1,13 @@
-Consulta del contador: $consulta
+Consulta del contador: $query
 
-Cliente: CUIT $cuit_cliente, régimen $regimen.
-Período a liquidar: $periodo
-Alícuota IIBB: $alicuota_iibb | Alícuota TEM: $alicuota_tem | Cuota mensual de monotributo: $cuota_monotributo | Tope de categoría (12 meses): $tope_categoria
+Cliente: CUIT $client_cuit, régimen $regime.
+Período a liquidar: $period
+Alícuota IIBB: $iibb_rate | Alícuota TEM: $tem_rate | Cuota mensual de monotributo: $monotributo_fee | Tope de categoría (12 meses): $category_cap
 
 Comprobantes EMITIDOS (últimos 12 meses):
 fecha | tipo | pto_vta-número | contraparte | moneda | tipo_cambio | neto_gravado | no_gravado | exento | iva | total
-$emitidos
+$issued
 
 Comprobantes RECIBIDOS del período:
 fecha | tipo | pto_vta-número | contraparte | moneda | tipo_cambio | neto_gravado | no_gravado | exento | iva | total
-$recibidos
+$received

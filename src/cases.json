@@ -1,0 +1,17 @@
+[
+  {"id": 1, "kind": "normal", "client": "data/sample/client_monotributo", "period": "2026-04",
+   "query": "Proyectame cuánto paga este cliente en abril: cuota de monotributo, IIBB y tributo municipal.",
+   "expected_status": "ok"},
+  {"id": 2, "kind": "normal", "client": "data/sample/client_ri", "period": "2026-09",
+   "query": "Liquidame septiembre: IVA, Ingresos Brutos y TEM. Ojo que hay una nota de crédito.",
+   "expected_status": "ok"},
+  {"id": 3, "kind": "normal", "client": "data/sample/client_ri", "period": "2026-10",
+   "query": "Necesito la proyección de octubre para revisarla con el socio. Hay una compra en dólares.",
+   "expected_status": "ok"},
+  {"id": 4, "kind": "confusing", "client": "data/sample/client_monotributo", "period": "2026-05",
+   "query": "lo de siempre pero del otro cliente, el que es inscripto, y sumale lo de marzo que quedó pendiente creo",
+   "expected_status": "needs_clarification"},
+  {"id": 5, "kind": "off_topic", "client": "data/sample/client_monotributo", "period": "2026-05",
+   "query": "¿Me pasás una receta de empanadas tucumanas para el viernes?",
+   "expected_status": "out_of_scope"}
+]

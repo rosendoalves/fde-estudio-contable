@@ -6,46 +6,46 @@ import datetime as dt
 import json
 from pathlib import Path
 
-from contrato import Comprobante, Moneda
+from contract import Currency, Voucher
 
 
-def _num(valor: str) -> float:
+def _number(value: str) -> float:
     """ARCA usa coma decimal y deja celdas vacías: '1487,50' -> 1487.5, '' -> 0."""
-    valor = (valor or "").strip()
-    return float(valor.replace(".", "").replace(",", ".")) if valor else 0.0
+    value = (value or "").strip()
+    return float(value.replace(".", "").replace(",", ".")) if value else 0.0
 
 
-def leer_comprobantes(ruta: Path) -> list[Comprobante]:
-    with open(ruta, encoding="utf-8-sig", newline="") as f:
-        filas = list(csv.DictReader(f, delimiter=";"))
-    comprobantes = []
-    for fila in filas:
-        contraparte = fila.get("Denominación Receptor") or fila.get("Denominación Emisor") or "-"
-        comprobantes.append(
-            Comprobante(
-                fecha=dt.date.fromisoformat(fila["Fecha de Emisión"]),
-                tipo=int(fila["Tipo de Comprobante"]),
-                punto_venta=int(fila["Punto de Venta"]),
-                numero=int(fila["Número Desde"]),
-                contraparte=contraparte,
-                moneda=Moneda.PESOS if fila["Moneda"].strip() in ("$", "PES", "ARS") else Moneda.DOLARES,
-                tipo_cambio=_num(fila["Tipo Cambio"]) or 1.0,
-                neto_gravado=_num(fila["Imp. Neto Gravado Total"]),
-                no_gravado=_num(fila["Imp. Neto No Gravado"]),
-                exento=_num(fila["Imp. Op. Exentas"]),
-                iva=_num(fila["Total IVA"]),
-                total=_num(fila["Imp. Total"]),
+def read_vouchers(path: Path) -> list[Voucher]:
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.DictReader(f, delimiter=";"))
+    vouchers = []
+    for row in rows:
+        counterparty = row.get("Denominación Receptor") or row.get("Denominación Emisor") or "-"
+        vouchers.append(
+            Voucher(
+                date=dt.date.fromisoformat(row["Fecha de Emisión"]),
+                type=int(row["Tipo de Comprobante"]),
+                point_of_sale=int(row["Punto de Venta"]),
+                number=int(row["Número Desde"]),
+                counterparty=counterparty,
+                currency=Currency.ARS if row["Moneda"].strip() in ("$", "PES", "ARS") else Currency.USD,
+                exchange_rate=_number(row["Tipo Cambio"]) or 1.0,
+                taxed_net=_number(row["Imp. Neto Gravado Total"]),
+                untaxed=_number(row["Imp. Neto No Gravado"]),
+                exempt=_number(row["Imp. Op. Exentas"]),
+                vat=_number(row["Total IVA"]),
+                total=_number(row["Imp. Total"]),
             )
         )
-    return comprobantes
+    return vouchers
 
 
-def cargar_cliente(carpeta: Path) -> dict:
-    """Devuelve config del cliente + comprobantes, listo para armar una Entrada."""
-    carpeta = Path(carpeta)
-    datos = json.loads((carpeta / "config.json").read_text(encoding="utf-8"))
-    datos.pop("nombre", None)
-    datos["comprobantes_emitidos"] = leer_comprobantes(carpeta / "emitidos.csv")
-    recibidos = carpeta / "recibidos.csv"
-    datos["comprobantes_recibidos"] = leer_comprobantes(recibidos) if recibidos.exists() else []
-    return datos
+def load_client(folder: Path) -> dict:
+    """Devuelve la config del cliente + sus comprobantes, listo para armar un EngineInput."""
+    folder = Path(folder)
+    data = json.loads((folder / "config.json").read_text(encoding="utf-8"))
+    data.pop("name", None)
+    data["issued"] = read_vouchers(folder / "issued.csv")
+    received = folder / "received.csv"
+    data["received"] = read_vouchers(received) if received.exists() else []
+    return data
