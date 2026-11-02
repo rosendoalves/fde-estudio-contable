@@ -1,0 +1,9 @@
+{
+  "nombre": "Cliente ficticio A (monotributo, servicios)",
+  "cuit_cliente": "20111111112",
+  "regimen": "monotributo",
+  "alicuota_iibb": 0.05,
+  "alicuota_tem": 0.01,
+  "cuota_monotributo": 42000,
+  "tope_categoria": 10000000
+}

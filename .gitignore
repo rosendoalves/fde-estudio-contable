@@ -1,0 +1,8 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Datos reales de clientes: nunca al repo (solo datos/ejemplo, que son ficticios)
+datos/reales/

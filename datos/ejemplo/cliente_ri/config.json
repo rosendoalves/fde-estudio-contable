@@ -1,0 +1,7 @@
+{
+  "nombre": "Cliente ficticio B (responsable inscripto, comercio)",
+  "cuit_cliente": "30777777771",
+  "regimen": "responsable_inscripto",
+  "alicuota_iibb": 0.05,
+  "alicuota_tem": 0.01
+}

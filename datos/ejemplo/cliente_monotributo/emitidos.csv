@@ -1,0 +1,5 @@
+Fecha de Emisión;Tipo de Comprobante;Punto de Venta;Número Desde;Número Hasta;Cód. Autorización;Tipo Doc. Receptor;Nro. Doc. Receptor;Denominación Receptor;Tipo Cambio;Moneda;Imp. Neto Gravado IVA 0%;IVA 2,5%;Imp. Neto Gravado IVA 2,5%;IVA 5%;Imp. Neto Gravado IVA 5%;IVA 10,5%;Imp. Neto Gravado IVA 10,5%;IVA 21%;Imp. Neto Gravado IVA 21%;IVA 27%;Imp. Neto Gravado IVA 27%;Imp. Neto Gravado Total;Imp. Neto No Gravado;Imp. Op. Exentas;Otros Tributos;Total IVA;Imp. Total
+2026-03-03;11;1;70;70;25670787013021;80;30999999991;CLIENTE EDUCATIVO FICTICIO S.R.L.;1,00;$;;;;;;;;;;;;0,00;0,00;0,00;0,00;0,00;240000,00
+2026-04-06;11;1;71;71;44463998825047;80;30999999991;CLIENTE EDUCATIVO FICTICIO S.R.L.;1,00;$;;;;;;;;;;;;0,00;0,00;0,00;0,00;0,00;280000,00
+2026-04-06;11;1;72;72;29637549160158;80;30999999991;CLIENTE EDUCATIVO FICTICIO S.R.L.;1,00;$;;;;;;;;;;;;0,00;0,00;0,00;0,00;0,00;40000,00
+2026-05-02;11;1;73;73;24425663299753;80;30999999991;CLIENTE EDUCATIVO FICTICIO S.R.L.;1,00;$;;;;;;;;;;;;0,00;0,00;0,00;0,00;0,00;280000,00
