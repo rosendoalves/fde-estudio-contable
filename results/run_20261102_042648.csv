@@ -1,0 +1,6 @@
+case,kind,status,expected,accuracy,attempts,input_tokens,output_tokens,cost_usd,latency_ms
+1,normal,ok,ok,1.0,1,2662,402,0.018688,3964
+2,normal,ok,ok,1.0,1,2707,971,0.030248,9046
+3,normal,ok,ok,1.0,1,3211,1126,0.035364,9323
+4,confusing,needs_clarification,needs_clarification,1.0,1,2751,362,0.018244,3844
+5,off_topic,out_of_scope,out_of_scope,1.0,1,2735,157,0.01408,1845
