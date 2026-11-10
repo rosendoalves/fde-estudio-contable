@@ -7,6 +7,7 @@ Cubren los criterios de la PE3 como casos de prueba (entrada -> resultado espera
   - el filtro por rol va DENTRO de la consulta a ChromaDB (vectorial y corpus de BM25);
   - un auxiliar no recibe nada de un documento restringido, ni en resultados ni en el prompt;
   - un socio sí lo recibe (control positivo);
+  - el estudio tiene varios clientes: el legajo de un cliente nunca aparece con otro cliente en contexto;
   - sin evidencia -> requires_human = true; una fuente no recuperada no se puede citar.
 """
 import json
@@ -23,6 +24,8 @@ import rag  # noqa: E402
 from chunking import load_documents  # noqa: E402
 
 RESTRICTED = {"client_fees", "client_file_norte_grande", "partner_meeting_minutes"}
+LAPACHOS, TAFI, NORTE_GRANDE = "30777777771", "20111111112", "30712345679"
+NG_DIR = ROOT / "data/sample/client_norte_grande"
 
 
 def fake_response(text):
@@ -80,10 +83,8 @@ class TestRag(unittest.TestCase):
         cls.col = rag.ingest(rag.KB_DIR, "section", client=cls.client)
         cls.users = rag.load_users()
         cls.socio, cls.auxiliar = cls.users["nicolas"], cls.users["lucia"]
-        cls.restricted_texts = [
-            t for t, m in zip(*[cls.col.get(where={"role_auxiliar": False}, include=["documents", "metadatas"])[k]
-                                for k in ("documents", "metadatas")])
-        ]
+        cls.restricted_texts = cls.col.get(where={"role_auxiliar": False}, include=["documents"])["documents"]
+        cls.client_chunks = cls.col.get(where={"client": {"$ne": "all"}}, include=["documents", "metadatas"])
 
     @classmethod
     def tearDownClass(cls):
@@ -94,7 +95,8 @@ class TestRag(unittest.TestCase):
         data = self.col.get(include=["metadatas"])
         self.assertEqual(len({m["document"] for m in data["metadatas"]}), len(load_documents(rag.KB_DIR)))
         for m in data["metadatas"]:
-            for key in ("document", "section", "roles", "role_socio", "role_auxiliar", "version", "effective_date"):
+            for key in ("document", "section", "roles", "role_socio", "role_auxiliar", "client", "version",
+                        "effective_date"):
                 self.assertIn(key, m)
             self.assertEqual(m["role_auxiliar"], "auxiliar" in m["roles"].split(","))
 
@@ -105,14 +107,14 @@ class TestRag(unittest.TestCase):
         self.assertTrue(self.restricted_texts)
         for text in self.restricted_texts:
             for mode in ("vector", "bm25", "hybrid"):
-                hits = rag.search(text, self.auxiliar, k=100, collection=self.col, mode=mode)
+                hits = rag.search(text, self.auxiliar, k=100, collection=self.col, mode=mode, client=NORTE_GRANDE)
                 self.assertFalse({h.document for h in hits} & RESTRICTED, f"fuga en modo {mode}")
 
     def test_role_filter_is_inside_the_db_query(self):
         spy = SpyCollection(self.col)
-        rag.search("honorarios Ferretería Los Lapachos", self.auxiliar, k=5, collection=spy)
-        self.assertEqual({w for _, w in [(c, json.dumps(w)) for c, w in spy.wheres]},
-                         {json.dumps({"role_auxiliar": True})})
+        rag.search("honorarios Ferretería Los Lapachos", self.auxiliar, k=5, collection=spy, client=LAPACHOS)
+        expected = {"$and": [{"role_auxiliar": True}, {"client": {"$in": ["all", LAPACHOS]}}]}
+        self.assertEqual({json.dumps(w) for _, w in spy.wheres}, {json.dumps(expected)})
         self.assertEqual({c for c, _ in spy.wheres}, {"query", "get"})  # vectorial y corpus BM25
 
     def test_auxiliar_restricted_question_not_in_prompt_and_requires_human(self):
@@ -137,14 +139,39 @@ class TestRag(unittest.TestCase):
 
     def test_socio_answer_cites_restricted_source(self):
         q = "¿Qué plan de pagos tiene vigente Distribuidora Norte Grande con ARCA?"
-        hits = rag.search(q, self.socio, k=5, collection=self.col)
+        hits = rag.search(q, self.socio, k=5, collection=self.col, client=NORTE_GRANDE)
         cid = next(h.chunk_id for h in hits if h.document == "client_file_norte_grande")
         fake = FakeClient([reply(False, [cid], "Plan P-884512 en 24 cuotas de $ 1.180.000.")])
-        res = rag.answer(rag.entrada_for(q), self.socio, collection=self.col, client=fake)
+        res = rag.answer(rag.entrada_for(q, NG_DIR), self.socio, collection=self.col, client=fake)
         self.assertTrue(res.ok)
         self.assertFalse(res.output.requires_human)
         self.assertEqual(res.output.sources[0].document, "client_file_norte_grande")
         self.assertIn("P-884512", "\n".join(fake.sent))
+
+    # --- varios clientes: aislamiento de legajos --------------------------------------------------
+    def test_client_file_never_returned_for_another_client(self):
+        # Entrada: texto exacto de cada fragmento de legajo, como socio (máximo permiso), con cada uno de los
+        # otros clientes en contexto y sin cliente. Esperado: 0 fragmentos de ese cliente.
+        self.assertTrue(self.client_chunks["ids"])
+        for text, meta in zip(self.client_chunks["documents"], self.client_chunks["metadatas"]):
+            for other in [c for c in (LAPACHOS, TAFI, NORTE_GRANDE) if c != meta["client"]] + [None]:
+                hits = rag.search(text, self.socio, k=100, collection=self.col, client=other)
+                self.assertFalse([h for h in hits if h.metadata["client"] == meta["client"]],
+                                 f"legajo {meta['client']} visible con cliente {other}")
+
+    def test_auxiliar_sees_operational_file_only_of_client_in_context(self):
+        q = "¿En qué jurisdicciones tributa Ingresos Brutos este cliente y con qué coeficientes?"
+        own = rag.search(q, self.auxiliar, k=5, collection=self.col, client=LAPACHOS)
+        self.assertIn("client_file_los_lapachos", {h.document for h in own})
+        other = rag.search(q, self.auxiliar, k=100, collection=self.col, client=TAFI)
+        self.assertNotIn("client_file_los_lapachos", {h.document for h in other})
+
+    def test_answer_uses_client_cuit_from_entrada(self):
+        fake = FakeClient([reply(True)])
+        res = rag.answer(rag.entrada_for("¿Qué plan de pagos tiene vigente con ARCA?"), self.socio,
+                         collection=self.col, client=fake)  # cliente en contexto: Los Lapachos
+        self.assertFalse({c.split("::")[0] for c in res.retrieved} & {"client_file_norte_grande"})
+        self.assertNotIn("P-884512", "\n".join(fake.sent))
 
     # --- respuesta con fuentes / requires_human ---------------------------------------------------
     def test_answered_without_sources_is_rejected_and_retried(self):

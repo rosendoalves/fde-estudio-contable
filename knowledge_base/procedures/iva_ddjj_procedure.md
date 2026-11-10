@@ -2,6 +2,7 @@
 doc_id: iva_ddjj_procedure
 title: Procedimiento de DDJJ mensual de IVA (F.2002)
 roles: socio, auxiliar
+client: all
 version: 2
 effective_date: 2026-01-01
 owner: Nicolás (socio)

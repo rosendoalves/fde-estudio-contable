@@ -11,6 +11,7 @@ Uso:
     python src/rag.py ingest                       # procesa los documentos con las dos configuraciones
     python src/rag.py search --user lucia "alícuota 477461"
     python src/rag.py ask --user nicolas "¿Qué honorario paga Ferretería Los Lapachos?"
+    python src/rag.py ask --user mercedes --client-dir data/sample/client_norte_grande "¿Qué plan de pagos tiene?"
     python src/rag.py show-chunk "iibb_tucuman_rates::section::001"
 """
 from __future__ import annotations
@@ -34,7 +35,7 @@ from pydantic import BaseModel, ValidationError
 from rank_bm25 import BM25Okapi
 
 sys.path.insert(0, str(Path(__file__).parent))
-from chunking import CHUNK_CONFIGS, chunk_document, load_documents  # noqa: E402
+from chunking import CHUNK_CONFIGS, GENERAL_CLIENT, chunk_document, load_documents  # noqa: E402
 from contract import EngineInput  # noqa: E402
 from motor import MODELS_WITH_FALLBACK, PRICES_USD_PER_MTOK, EngineError, Metrics  # noqa: E402
 from rag_contract import RagModelReply, RagOutput, SearchHit, Source, User  # noqa: E402
@@ -68,8 +69,19 @@ def load_users() -> dict[str, User]:
 
 
 def role_filter(user: User) -> dict:
-    """Filtro de permisos que se pasa a ChromaDB en el `where` de cada consulta."""
+    """Filtro de permisos por rol."""
     return {f"role_{user.role.value}": True}
+
+
+def access_filter(user: User, client: Optional[str] = None) -> dict:
+    """Filtro que se pasa a ChromaDB en el `where` de cada consulta: rol Y cliente.
+
+    El estudio atiende a varios clientes: un fragmento es visible si el rol lo permite y si es del
+    estudio en general ("all") o del cliente en contexto. Sin cliente en contexto solo se ve lo general,
+    así una respuesta sobre un cliente nunca mezcla legajos de otro.
+    """
+    clients = [GENERAL_CLIENT] + ([client] if client else [])
+    return {"$and": [role_filter(user), {"client": {"$in": clients}}]}
 
 
 # ----------------------------------------------------------------- ingest --
@@ -101,7 +113,7 @@ def ingest(folder: Path | str = KB_DIR, config: str = DEFAULT_CONFIG, client=Non
         metadatas=[c.metadata for c in chunks],
     )
     collection._ingest_report = [  # para que la CLI pueda imprimir el resumen
-        (d.doc_id, d.roles, d.version, d.effective_date, sum(1 for c in chunks if c.document == d.doc_id))
+        (d.doc_id, d.roles, d.version, d.effective_date, sum(1 for c in chunks if c.document == d.doc_id), d.client)
         for d in docs
     ]
     return collection
@@ -157,14 +169,14 @@ def _bm25_ranking(collection, query: str, where: dict, n: int) -> list[tuple[str
 
 
 def search(query: str, user: User, k: int = DEFAULT_K, collection=None, mode: Mode = "hybrid",
-           config: str = DEFAULT_CONFIG) -> list[SearchHit]:
-    """Devuelve los k mejores fragmentos que el usuario puede leer.
+           config: str = DEFAULT_CONFIG, client: Optional[str] = None) -> list[SearchHit]:
+    """Devuelve los k mejores fragmentos que el usuario puede leer para el cliente en contexto.
 
     hybrid: fusiona el ranking vectorial y el de BM25 con Reciprocal Rank Fusion:
         puntaje = sum(1 / (RRF_K + posición)) sobre los rankings donde aparece el fragmento.
     """
     collection = collection or get_collection(config)
-    where = role_filter(user)
+    where = access_filter(user, client)
     vector = _vector_ranking(collection, query, where, CANDIDATES) if mode in ("hybrid", "vector") else []
     keyword = _bm25_ranking(collection, query, where, CANDIDATES) if mode in ("hybrid", "bm25") else []
 
@@ -291,12 +303,12 @@ def answer(entrada: EngineInput | dict, user: User, k: int = DEFAULT_K, collecti
         return finish(ok=False, error=EngineError(kind="input_validation", message=str(err.errors()[0]["msg"]),
                                                   fields=fields))
 
-    hits = search(e.query, user, k=k, collection=collection, config=config)
+    hits = search(e.query, user, k=k, collection=collection, config=config, client=e.client_cuit)
     retrieved = [h.chunk_id for h in hits]
     if not hits:  # sin evidencia ni siquiera se llama al modelo
         out = RagOutput(status="needs_clarification", period=e.period, requires_human=True,
-                        answer="No hay documentos disponibles para su rol que respondan la consulta.",
-                        explanation="La búsqueda no devolvió fragmentos permitidos para este rol.", confidence=0.0)
+                        answer="No hay documentos disponibles para su rol y este cliente que respondan la consulta.",
+                        explanation="La búsqueda no devolvió fragmentos permitidos para este rol y cliente.", confidence=0.0)
         return finish(ok=True, output=out, retrieved=retrieved)
 
     system, user_prompt = build_prompts(e, user, hits)
@@ -345,7 +357,10 @@ def answer(entrada: EngineInput | dict, user: User, k: int = DEFAULT_K, collecti
         fields=_failed_fields(last_error) if last_error else []))
 
 
-def entrada_for(query: str, client_dir: Path | str = ROOT / "data/sample/client_ri", period: str = "2026-10") -> dict:
+DEFAULT_CLIENT_DIR = ROOT / "data/sample/client_ri"
+
+
+def entrada_for(query: str, client_dir: Path | str = DEFAULT_CLIENT_DIR, period: str = "2026-10") -> dict:
     """Arma una Entrada de la PE2 para una consulta de conocimiento (sin comprobantes)."""
     cfg = json.loads((Path(client_dir) / "config.json").read_text(encoding="utf-8"))
     cfg.pop("name", None)
@@ -361,11 +376,13 @@ def _cmd_ingest(args) -> None:
         col = ingest(args.folder, config, client=client)
         ms = round((time.perf_counter() - t0) * 1000)
         print(f"\n== Configuración '{config}' {CHUNK_CONFIGS[config]} -> colección {col.name}")
-        print(f"{'documento':<32}{'roles':<18}{'versión':>8}  {'vigencia':<12}{'fragmentos':>11}")
-        for doc_id, roles, version, eff, n in col._ingest_report:
-            print(f"{doc_id:<32}{','.join(roles):<18}{version:>8}  {eff:<12}{n:>11}")
+        print(f"{'documento':<30}{'roles':<16}{'cliente':<13}{'versión':>7}  {'vigencia':<12}{'fragm.':>6}")
+        for doc_id, roles, version, eff, n, doc_client in col._ingest_report:
+            print(f"{doc_id:<30}{','.join(roles):<16}{doc_client:<13}{version:>7}  {eff:<12}{n:>6}")
         restricted = sum(1 for r in col._ingest_report if "auxiliar" not in r[1])
-        print(f"Total: {len(col._ingest_report)} documentos ({restricted} solo socios), {col.count()} fragmentos "
+        per_client = sum(1 for r in col._ingest_report if r[5] != GENERAL_CLIENT)
+        print(f"Total: {len(col._ingest_report)} documentos ({restricted} solo socios, {per_client} de un cliente puntual), "
+              f"{col.count()} fragmentos "
               f"en ChromaDB ({CHROMA_DIR.relative_to(ROOT) if CHROMA_DIR.is_relative_to(ROOT) else CHROMA_DIR}), {ms} ms")
 
 
@@ -378,15 +395,17 @@ def _cmd_show(args) -> None:
 
 def _cmd_search(args) -> None:
     user = load_users()[args.user]
+    client = json.loads((Path(args.client_dir) / "config.json").read_text(encoding="utf-8"))["client_cuit"]
     for mode in (["vector", "hybrid"] if args.compare else [args.mode]):
-        print(f"\n[{mode}] usuario={user.id} rol={user.role.value} consulta={args.query!r}")
-        for i, h in enumerate(search(args.query, user, k=args.k, mode=mode, config=args.config), start=1):
+        print(f"\n[{mode}] usuario={user.id} rol={user.role.value} cliente={client} consulta={args.query!r}")
+        for i, h in enumerate(search(args.query, user, k=args.k, mode=mode, config=args.config, client=client),
+                              start=1):
             print(f"  {i}. {h.chunk_id:<44} score={h.score:<9} vec#={h.vector_rank} bm25#={h.bm25_rank}  [{h.section}]")
 
 
 def _cmd_ask(args) -> None:
     user = load_users()[args.user]
-    result = answer(entrada_for(args.query), user, k=args.k, model=args.model, config=args.config)
+    result = answer(entrada_for(args.query, args.client_dir), user, k=args.k, model=args.model, config=args.config)
     print(result.model_dump_json(indent=2, exclude_none=True))
     m = result.metrics
     rh = result.output.requires_human if result.ok else None
@@ -411,6 +430,8 @@ def main() -> None:
         q.add_argument("--user", required=True)
         q.add_argument("--k", type=int, default=DEFAULT_K)
         q.add_argument("--config", default=DEFAULT_CONFIG, choices=list(CHUNK_CONFIGS))
+        q.add_argument("--client-dir", default=str(DEFAULT_CLIENT_DIR),
+                       help="carpeta del cliente en contexto (su config.json trae el CUIT)")
         if name == "search":
             q.add_argument("--mode", default="hybrid", choices=["hybrid", "vector", "bm25"])
             q.add_argument("--compare", action="store_true", help="muestra vector y híbrida lado a lado")

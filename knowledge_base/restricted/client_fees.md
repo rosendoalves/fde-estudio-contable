@@ -2,6 +2,7 @@
 doc_id: client_fees
 title: Honorarios y acuerdos con clientes 2026
 roles: socio
+client: all
 version: 2
 effective_date: 2026-07-01
 owner: Nicolás (socio)

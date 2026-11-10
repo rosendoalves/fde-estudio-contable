@@ -1,0 +1,7 @@
+{
+  "name": "Cliente ficticio C (responsable inscripto, mayorista, Convenio Multilateral)",
+  "client_cuit": "30712345679",
+  "regime": "responsable_inscripto",
+  "iibb_rate": 0.05,
+  "tem_rate": 0.008
+}

@@ -2,6 +2,7 @@
 doc_id: iibb_tucuman_rates
 title: Alícuotas de Ingresos Brutos - Tucumán (régimen local)
 roles: socio, auxiliar
+client: all
 version: 3
 effective_date: 2026-01-01
 owner: Mercedes (socia)

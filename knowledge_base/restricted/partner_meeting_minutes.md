@@ -2,6 +2,7 @@
 doc_id: partner_meeting_minutes
 title: Acta de reunión de socios - octubre 2026
 roles: socio
+client: all
 version: 1
 effective_date: 2026-10-05
 owner: Nicolás (socio)

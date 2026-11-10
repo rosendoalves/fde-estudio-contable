@@ -78,7 +78,7 @@ Los CSV de `data/sample/` son **ficticios**: se generaron a partir del formato r
 
 ## PE3: RAG con permisos y búsqueda híbrida
 
-El motor ahora responde consultas con los documentos del estudio (`knowledge_base/`): tablas de alícuotas y topes **versionadas** (número de versión, fecha de vigencia y responsable), procedimientos de DDJJ, políticas internas y documentos **restringidos a socios** (honorarios, legajos de clientes, actas). Todo es ficticio y anonimizado.
+El motor ahora responde consultas con los documentos del estudio (`knowledge_base/`): tablas de alícuotas y topes **versionadas** (número de versión, fecha de vigencia y responsable), procedimientos de DDJJ, políticas internas, **legajos de cada cliente** y documentos **restringidos a socios** (honorarios, actas, el legajo de un cliente con un plan de pagos). Todo es ficticio y anonimizado.
 
 Equivalencias con la consigna (el código va en inglés): `ingestar()` → `rag.ingest()`, `buscar(consulta, usuario, k)` → `rag.search(query, user, k)`, `responder(entrada)` → `rag.answer(entrada, user)`; campos `documento`, `fragmento_id`, `texto`, `puntaje` → `document`, `chunk_id`, `text`, `score`; `fuentes` → `sources`; `requiere_humano` → `requires_human`.
 
@@ -88,6 +88,7 @@ python src/rag.py show-chunk "iibb_tucuman_rates::section::001"   # metadatos de
 python src/rag.py search --user lucia --compare "NAES 477461"     # vectorial vs híbrida
 python src/rag.py ask --user nicolas "¿Cuánto paga de honorarios mensuales Ferretería Los Lapachos?"
 python src/rag.py ask --user lucia   "¿Cuánto paga de honorarios mensuales Ferretería Los Lapachos?"  # -> requires_human
+python src/rag.py ask --user mercedes --client-dir data/sample/client_norte_grande "¿Qué plan de pagos tiene vigente con ARCA?"
 python src/evaluate_rag.py topk          # medición top-k con los dos fragmentados (sin API)
 python src/evaluate_rag.py demo          # consultas donde la híbrida acierta y la vectorial falla
 python src/evaluate_rag.py answers [--model claude-haiku-5-5]   # 10 preguntas + 2 accesos denegados -> results/*.csv
@@ -98,7 +99,7 @@ La primera vez, ChromaDB descarga su modelo de embeddings local (all-MiniLM-L6-v
 
 **Cómo funciona**
 
-- **Ingesta**: cada documento tiene un encabezado con `doc_id`, `roles`, `version`, `effective_date` y `owner`. Cada fragmento se guarda con `document`, `section`, `roles` y un booleano por rol (`role_socio`, `role_auxiliar`).
-- **Permisos antes de buscar**: `search()` pasa `where={"role_<rol>": True}` a ChromaDB en la consulta vectorial **y** al traer el corpus de BM25. Un documento restringido nunca entra a los candidatos de un auxiliar, así que tampoco puede llegar al prompt.
+- **Ingesta**: cada documento tiene un encabezado con `doc_id`, `roles`, `client`, `version`, `effective_date` y `owner`. Cada fragmento se guarda con `document`, `section`, `roles`, un booleano por rol (`role_socio`, `role_auxiliar`) y `client` (`all` o el CUIT del cliente).
+- **Permisos antes de buscar (rol y cliente)**: el estudio atiende a varios clientes, así que `search()` pasa a ChromaDB `where={"$and": [{"role_<rol>": True}, {"client": {"$in": ["all", <CUIT del cliente en contexto>]}}]}`, tanto en la consulta vectorial como al traer el corpus de BM25. El CUIT sale de la Entrada de la PE2 (`client_cuit`). Un documento restringido nunca entra a los candidatos de un auxiliar y el legajo de un cliente nunca aparece cuando se consulta por otro; sin cliente en contexto solo se ve lo general.
 - **Búsqueda híbrida**: ranking vectorial (similitud coseno) + ranking BM25 (tokens sin acentos que conservan códigos como `477461`, `F.2002` o `P-884512`), fusionados con Reciprocal Rank Fusion (k = 60). BM25 solo aporta fragmentos con al menos 30 % del mejor puntaje, para que palabras comunes no metan ruido.
 - **Respuesta con fuentes**: el modelo solo ve los fragmentos recuperados y devuelve los `source_ids` que usó; el código arma `sources` desde lo recuperado y rechaza (con un reintento) cualquier fuente que no se haya recuperado o una respuesta sin fuentes. Si no hay evidencia, `requires_human = true`.

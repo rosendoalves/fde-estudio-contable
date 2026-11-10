@@ -2,6 +2,7 @@
 doc_id: monotributo_recategorization
 title: Recategorización semestral de monotributo
 roles: socio, auxiliar
+client: all
 version: 2
 effective_date: 2026-01-01
 owner: Nicolás (socio)
