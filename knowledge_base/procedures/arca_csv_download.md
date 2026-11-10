@@ -2,6 +2,7 @@
 doc_id: arca_csv_download
 title: Descarga y normalización de Mis Comprobantes (ARCA)
 roles: socio, auxiliar
+client: all
 version: 2
 effective_date: 2026-03-01
 owner: Mercedes (socia)

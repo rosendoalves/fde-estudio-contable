@@ -12,7 +12,10 @@ Cada documento empieza con un encabezado entre `---` que la ingesta lee como met
 | `doc_id` | identificador estable del documento (se cita como fuente) |
 | `title` | título legible |
 | `roles` | roles que pueden leerlo: `socio`, `auxiliar` (separados por coma) |
+| `client` | `all` si es normativa o procedimiento del estudio para todos los clientes, o el CUIT del cliente si es su legajo |
 | `version` / `effective_date` / `owner` | versionado: número de versión, fecha de vigencia y responsable de actualizarlo |
 
 Carpetas: `tax_tables/` (tablas de alícuotas y topes, versionadas), `procedures/` (procedimientos
-de DDJJ), `policies/` (políticas internas) y `restricted/` (honorarios, legajos y actas: **solo socios**).
+de DDJJ), `policies/` (políticas internas), `clients/` (legajos: uno por cliente, cada uno con su CUIT)
+y `restricted/` (honorarios y actas del estudio: **solo socios**). El legajo de Distribuidora Norte Grande
+es de un cliente puntual y además solo para socios.

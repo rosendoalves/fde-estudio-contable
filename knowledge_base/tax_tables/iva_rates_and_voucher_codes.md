@@ -2,6 +2,7 @@
 doc_id: iva_rates_and_voucher_codes
 title: Alícuotas de IVA y códigos de comprobante de ARCA
 roles: socio, auxiliar
+client: all
 version: 1
 effective_date: 2025-01-01
 owner: Nicolás (socio)

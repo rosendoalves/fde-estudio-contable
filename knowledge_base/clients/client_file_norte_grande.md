@@ -2,6 +2,7 @@
 doc_id: client_file_norte_grande
 title: Legajo - Distribuidora Norte Grande SA
 roles: socio
+client: 30712345679
 version: 3
 effective_date: 2026-09-15
 owner: Mercedes (socia)

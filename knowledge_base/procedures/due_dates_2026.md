@@ -2,6 +2,7 @@
 doc_id: due_dates_2026
 title: Calendario de vencimientos 2026 (segundo semestre)
 roles: socio, auxiliar
+client: all
 version: 1
 effective_date: 2026-07-01
 owner: Mercedes (socia)

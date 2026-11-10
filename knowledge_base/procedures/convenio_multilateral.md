@@ -2,6 +2,7 @@
 doc_id: convenio_multilateral
 title: Ingresos Brutos - Convenio Multilateral (CM03 y CM05)
 roles: socio, auxiliar
+client: all
 version: 1
 effective_date: 2025-06-01
 owner: Mercedes (socia)

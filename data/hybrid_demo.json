@@ -1,10 +1,12 @@
 [
-  {"user": "lucia", "query": "NAES 477461", "expected_document": "iibb_tucuman_rates",
+  {"user": "lucia", "client_dir": "data/sample/client_monotributo", "query": "NAES 477461", "expected_document": "iibb_tucuman_rates",
    "why": "código de actividad exacto: el embedding no distingue números de 6 dígitos"},
-  {"user": "lucia", "query": "¿Qué efecto tiene el comprobante tipo 51?", "expected_document": "iva_rates_and_voucher_codes",
-   "why": "código de comprobante: la búsqueda vectorial trae procedimientos que hablan de comprobantes en general"},
-  {"user": "nicolas", "query": "Ferretería Los Lapachos", "expected_document": "client_fees",
-   "why": "nombre exacto de un cliente (documento restringido, consulta hecha por un socio)"},
-  {"user": "lucia", "query": "alícuota 620100", "expected_document": "iibb_tucuman_rates",
-   "why": "código NAES exacto: la vectorial prioriza la tabla de alícuotas de IVA"}
+  {"user": "lucia", "client_dir": "data/sample/client_monotributo", "query": "¿Cuál es el código 107121?", "expected_document": "iibb_tucuman_rates",
+   "why": "código NAES exacto dentro de una pregunta corta"},
+  {"user": "lucia", "client_dir": "data/sample/client_ri", "query": "alícuota 620100", "expected_document": "iibb_tucuman_rates",
+   "why": "código NAES exacto: la vectorial prioriza la tabla de alícuotas de IVA"},
+  {"user": "lucia", "client_dir": "data/sample/client_ri", "query": "¿Qué efecto tiene el comprobante tipo 51?", "expected_document": "iva_rates_and_voucher_codes",
+   "why": "código de comprobante: la vectorial trae procedimientos que hablan de comprobantes en general"},
+  {"user": "nicolas", "client_dir": "data/sample/client_ri", "query": "Panadería La Espiga", "expected_document": "client_fees",
+   "why": "nombre exacto de un cliente que solo aparece en la tabla de honorarios (solo socios)"}
 ]

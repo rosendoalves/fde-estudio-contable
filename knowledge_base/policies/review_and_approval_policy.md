@@ -2,6 +2,7 @@
 doc_id: review_and_approval_policy
 title: Política de revisión y aprobación de liquidaciones
 roles: socio, auxiliar
+client: all
 version: 1
 effective_date: 2026-01-01
 owner: Nicolás (socio)

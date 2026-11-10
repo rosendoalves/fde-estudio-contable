@@ -5,6 +5,7 @@ Reglas:
 - Si los fragmentos no alcanzan para responder con seguridad, devolvé requires_human = true, status "needs_clarification", source_ids vacío y en answer decí en una oración que no hay evidencia suficiente en los documentos y que hay que consultar a un socio.
 - Si la consulta no tiene que ver con el trabajo del estudio, devolvé requires_human = true y status "out_of_scope".
 - Si respondés (status "answered", requires_human = false), citá en source_ids los id de TODOS los fragmentos que usaste, copiados exactamente del atributo id. Cada dato de la respuesta tiene que estar en un fragmento citado.
+- El estudio tiene varios clientes: respondé solo sobre el cliente en contexto o sobre normativa general del estudio.
 - Cuando el dato venga de una tabla versionada, mencioná la versión y la fecha de vigencia.
 - Respondé en castellano, en no más de 4 oraciones, en el campo answer. En explanation contá en una o dos oraciones de qué fragmentos sacaste el dato.
 

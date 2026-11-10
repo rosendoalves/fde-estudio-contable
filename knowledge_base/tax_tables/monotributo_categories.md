@@ -2,6 +2,7 @@
 doc_id: monotributo_categories
 title: Categorías de monotributo - topes y cuotas
 roles: socio, auxiliar
+client: all
 version: 4
 effective_date: 2026-08-01
 owner: Nicolás (socio)

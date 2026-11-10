@@ -11,7 +11,9 @@ documento correcto y se evalúan en `answers` por requires_human):
   - evidencia@k: algún fragmento del top-k contiene TODOS los textos de `evidence` (el dato y su
     contexto, por ejemplo la fila y el encabezado de la tabla). Es más exigente que doc@k.
   - MRR: promedio de 1 / posición del documento esperado.
-  - fugas: fragmentos de documentos restringidos devueltos a un auxiliar (meta: 0).
+  - fugas por rol: fragmentos de documentos solo para socios devueltos a un auxiliar (meta: 0).
+  - fugas entre clientes: fragmentos del legajo de un cliente devueltos con OTRO cliente en contexto,
+    buscando con el texto exacto de cada fragmento y con un socio (el rol con más permisos). Meta: 0.
 """
 from __future__ import annotations
 
@@ -33,12 +35,28 @@ DEMO = ROOT / "data" / "hybrid_demo.json"
 RESULTS = ROOT / "results"
 KS = (1, 3, 5)
 RESTRICTED_DOCS = {"client_fees", "client_file_norte_grande", "partner_meeting_minutes"}
+CLIENT_DIRS = sorted(str(p.parent.relative_to(ROOT)) for p in (ROOT / "data" / "sample").glob("*/config.json"))
 # KPI de la PE3 (se comparan contra lo medido; si no se llega, se informa NO CUMPLE)
 KPI = {"doc_at_5": 0.90, "evidence_at_5": 0.85, "leaks": 0, "accuracy": 0.90, "latency_ms": 10_000, "cost_usd": 0.02}
 
 
 def load_questions() -> list[dict]:
     return json.loads(QUESTIONS.read_text(encoding="utf-8"))
+
+
+def client_of(client_dir: str) -> str:
+    return json.loads((ROOT / client_dir / "config.json").read_text(encoding="utf-8"))["client_cuit"]
+
+
+def cross_client_leaks(col, socio) -> int:
+    """Busca con el texto exacto de cada fragmento de legajo, con cada uno de los OTROS clientes en contexto."""
+    data = col.get(where={"client": {"$ne": "all"}}, include=["documents", "metadatas"])
+    leaks = 0
+    for text, meta in zip(data["documents"], data["metadatas"]):
+        for other in [client_of(d) for d in CLIENT_DIRS if client_of(d) != meta["client"]] + [None]:
+            hits = rag.search(text, socio, k=50, collection=col, client=other)
+            leaks += sum(1 for h in hits if h.metadata.get("client") == meta["client"])
+    return leaks
 
 
 def _write_csv(name: str, rows: list[dict]) -> Path:
@@ -66,7 +84,8 @@ def cmd_topk(_args) -> None:
         col = rag.get_collection(config)
         for mode in ("vector", "hybrid"):
             for q in answerable:
-                hits = rag.search(q["query"], users[q["user"]], k=max(KS), collection=col, mode=mode)
+                hits = rag.search(q["query"], users[q["user"]], k=max(KS), collection=col, mode=mode,
+                                  client=client_of(q["client_dir"]))
                 docs = [h.document for h in hits]
                 pos = docs.index(q["expected_document"]) + 1 if q["expected_document"] in docs else None
                 ev_pos = next((i for i, h in enumerate(hits, 1) if all(e in h.text for e in q["evidence"])), None)
@@ -74,10 +93,13 @@ def cmd_topk(_args) -> None:
                 rows.append(row)
             # fugas: las preguntas restringidas hechas por el auxiliar sin permiso
             for q in [q for q in questions if q.get("denied_user")]:
-                hits = rag.search(q["query"], users[q["denied_user"]], k=50, collection=col, mode=mode)
+                hits = rag.search(q["query"], users[q["denied_user"]], k=50, collection=col, mode=mode,
+                                  client=client_of(q["client_dir"]))
                 rows.append({"config": config, "mode": mode, "question": f"{q['id']}-denied",
                              "doc_rank": "", "evidence_rank": "",
                              "leaks": sum(1 for h in hits if h.document in RESTRICTED_DOCS)})
+        rows.append({"config": config, "mode": "hybrid", "question": "cross-client", "doc_rank": "",
+                     "evidence_rank": "", "leaks": cross_client_leaks(col, users["nicolas"])})
     for r in rows:
         r.setdefault("leaks", "")
     out = _write_csv("rag_topk", rows)
@@ -88,12 +110,14 @@ def cmd_topk(_args) -> None:
 def summarize_topk(path: Path) -> dict:
     rows = list(csv.DictReader(open(path, encoding="utf-8")))
     print(f"{'fragmentado':<12}{'búsqueda':<9}" + "".join(f"{'doc@' + str(k):>8}" for k in KS)
-          + "".join(f"{'evid@' + str(k):>9}" for k in KS) + f"{'MRR':>7}{'fugas':>7}")
+          + "".join(f"{'evid@' + str(k):>9}" for k in KS) + f"{'MRR':>7}{'fugas*':>7}")
     table = {}
     for config in CHUNK_CONFIGS:
         for mode in ("vector", "hybrid"):
-            sel = [r for r in rows if r["config"] == config and r["mode"] == mode and not r["question"].endswith("denied")]
+            sel = [r for r in rows if r["config"] == config and r["mode"] == mode and r["question"].startswith("Q")
+                   and not r["question"].endswith("denied")]
             den = [r for r in rows if r["config"] == config and r["mode"] == mode and r["question"].endswith("denied")]
+            den += [r for r in rows if r["config"] == config and r["mode"] == mode and r["question"] == "cross-client"]
             n = len(sel)
             doc = {k: sum(1 for r in sel if r["doc_rank"] and int(r["doc_rank"]) <= k) for k in KS}
             ev = {k: sum(1 for r in sel if r["evidence_rank"] and int(r["evidence_rank"]) <= k) for k in KS}
@@ -102,6 +126,8 @@ def summarize_topk(path: Path) -> dict:
             table[(config, mode)] = {"n": n, "doc": doc, "ev": ev, "mrr": mrr, "leaks": leaks}
             print(f"{config:<12}{mode:<9}" + "".join(f"{doc[k]:>5}/{n}" for k in KS)
                   + "".join(f"{ev[k]:>6}/{n}" for k in KS) + f"{mrr:>7.2f}{leaks:>7}")
+    print("* fugas = fragmentos solo-socios devueltos a un auxiliar + fragmentos de legajos devueltos con otro cliente"
+          " en contexto (la prueba entre clientes se corre con búsqueda híbrida)")
     best = max(table, key=lambda c: (table[c]["ev"][5], table[c]["ev"][3], table[c]["ev"][1], table[c]["mrr"]))
     b = table[best]
     print(f"\nGanadora: fragmentado '{best[0]}' con búsqueda '{best[1]}' (criterio: evidencia@5, luego @3, @1 y MRR)")
@@ -120,9 +146,10 @@ def cmd_demo(_args) -> None:
     col = rag.get_collection(rag.DEFAULT_CONFIG)
     print(f"Fragmentado '{rag.DEFAULT_CONFIG}'. Posición del documento esperado (- = no aparece en el top-5)\n")
     for d in demo:
-        print(f"Consulta: {d['query']!r} (usuario {d['user']}) -> esperado {d['expected_document']}  [{d['why']}]")
+        print(f"Consulta: {d['query']!r} (usuario {d['user']}, cliente {client_of(d['client_dir'])}) -> esperado {d['expected_document']}  [{d['why']}]")
         for mode in ("vector", "hybrid"):
-            hits = rag.search(d["query"], users[d["user"]], k=5, collection=col, mode=mode)
+            hits = rag.search(d["query"], users[d["user"]], k=5, collection=col, mode=mode,
+                              client=client_of(d["client_dir"]))
             docs = [h.document for h in hits]
             pos = docs.index(d["expected_document"]) + 1 if d["expected_document"] in docs else "-"
             top1 = "ACIERTA" if pos == 1 else "FALLA"
@@ -164,11 +191,12 @@ def cmd_answers(args) -> None:
     rows = []
     for q, uid, denied in runs:
         user = users[uid]
-        result = rag.answer(rag.entrada_for(q["query"]), user, model=model)
+        result = rag.answer(rag.entrada_for(q["query"], ROOT / q["client_dir"]), user, model=model)
         passed, reason = _passes(q, result, denied)
         m = result.metrics
         rows.append({
             "question": q["id"] + ("-denied" if denied else ""), "kind": q["kind"], "user": uid, "role": user.role.value,
+            "client": client_of(q["client_dir"]),
             "model": model, "requires_human": result.output.requires_human if result.ok else "",
             "sources": ";".join(sorted({s.document for s in result.output.sources})) if result.ok else "",
             "passed": int(passed), "reason": reason, "attempts": m.attempts,

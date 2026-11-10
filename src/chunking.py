@@ -17,7 +17,8 @@ CHUNK_CONFIGS = {
     "section": {"strategy": "section", "max_chars": 1200, "overlap": 150},
     "fixed": {"strategy": "fixed", "max_chars": 350, "overlap": 50},
 }
-REQUIRED_FIELDS = ("doc_id", "title", "roles", "version", "effective_date", "owner")
+REQUIRED_FIELDS = ("doc_id", "title", "roles", "client", "version", "effective_date", "owner")
+GENERAL_CLIENT = "all"  # documento del estudio que aplica a todos los clientes
 VALID_ROLES = {"socio", "auxiliar"}
 
 
@@ -26,6 +27,7 @@ class Document:
     doc_id: str
     title: str
     roles: list[str]
+    client: str
     version: str
     effective_date: str
     owner: str
@@ -65,8 +67,11 @@ def parse_document(path: Path) -> Document:
     roles = [r.strip() for r in meta["roles"].split(",") if r.strip()]
     if not roles or set(roles) - VALID_ROLES:
         raise ValueError(f"{path}: roles inválidos {roles}")
+    client = meta["client"]
+    if client != GENERAL_CLIENT and not re.fullmatch(r"\d{11}", client):
+        raise ValueError(f"{path}: client tiene que ser 'all' o un CUIT de 11 dígitos, no {client!r}")
     return Document(
-        doc_id=meta["doc_id"], title=meta["title"], roles=roles, version=meta["version"],
+        doc_id=meta["doc_id"], title=meta["title"], roles=roles, client=client, version=meta["version"],
         effective_date=meta["effective_date"], owner=meta["owner"], path=str(path),
         body=clean(match.group(2)),
     )
@@ -150,6 +155,9 @@ def chunk_document(doc: Document, config: str) -> list[Chunk]:
             "title": doc.title,
             "section": section,
             "roles": ",".join(doc.roles),
+            # Cliente al que pertenece el documento: "all" (normativa y procedimientos del estudio) o el
+            # CUIT del cliente (legajos). ChromaDB filtra con client $in ["all", <CUIT en contexto>].
+            "client": doc.client,
             # Un booleano por rol: ChromaDB filtra con where={"role_<rol>": True} dentro de la consulta.
             **{f"role_{r}": r in doc.roles for r in sorted(VALID_ROLES)},
             "version": doc.version,
