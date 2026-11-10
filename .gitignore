@@ -6,3 +6,4 @@ __pycache__/
 .pytest_cache/
 # Datos reales de clientes: nunca al repo (solo data/sample, que son ficticios)
 data/real/
+.chroma/

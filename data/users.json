@@ -1,0 +1,7 @@
+[
+  {"id": "nicolas", "name": "Nicolás (socio)", "role": "socio"},
+  {"id": "mercedes", "name": "Mercedes (socia)", "role": "socio"},
+  {"id": "lucia", "name": "Lucía (auxiliar)", "role": "auxiliar"},
+  {"id": "tomas", "name": "Tomás (auxiliar)", "role": "auxiliar"},
+  {"id": "sofia", "name": "Sofía (auxiliar)", "role": "auxiliar"}
+]
