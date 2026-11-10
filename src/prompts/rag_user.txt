@@ -1,0 +1,7 @@
+Consulta: $query
+
+Quién consulta: rol $role.
+Cliente en contexto: CUIT $client_cuit, régimen $regime, período $period.
+
+Fragmentos recuperados de la base de conocimiento del estudio (ya filtrados por los permisos del rol):
+$fragments

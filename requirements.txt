@@ -1,3 +1,5 @@
 anthropic>=2.3,<3
 pydantic>=2.7,<3
 python-dotenv>=1.0
+chromadb>=1.0,<2
+rank-bm25>=0.2.2
